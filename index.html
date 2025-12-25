@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced AI Quiz Generator - Groq Powered</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+    .card { background-color: white; border-radius: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); transition: all 0.3s ease; }
+    .loading-ring {
+      width: 20px; height: 20px; border: 3px solid #fff; border-top-color: transparent; border-radius: 50%;
+      animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-left: 0.5rem;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    input[type="radio"].hidden + label.js-active-source {
+      background-color: white;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      color: #4f46e5;
+    }
+    .option-label {
+      transition: all 0.2s;
+      cursor: pointer;
+      padding: 0.2rem 0;
+      display: block;
+    }
+    .chat-bubble { max-width: 85%; padding: 0.75rem 1rem; border-radius: 1rem; line-height: 1.5; font-size: 0.95rem; }
+    .user-message { background-color: #4f46e5; color: white; margin-left: auto; border-bottom-right-radius: 0.25rem; }
+    .ai-message { background-color: #e0e7ff; color: #1e3a8a; margin-right: auto; border-bottom-left-radius: 0.25rem; white-space: pre-wrap; }
+    .markdown-bold { font-weight: 700; }
+  </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+
+  <header class="text-center mb-10">
+    <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">AI Quiz Generator ⚡️</h1>
+    <p class="text-gray-500 mt-2 text-lg">Powered by Groq Llama 3.1 &bull; Merry Christmas! 🎄</p>
+  </header>
+
+  <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
+    <!-- Configuration Panel -->
+    <div id="config-panel" class="card p-6 lg:col-span-1 h-fit sticky top-4 border border-gray-100">
+      <h2 class="text-xl font-bold mb-5 text-gray-800">Quiz Settings</h2>
+      
+      <!-- Input Selection -->
+      <div class="mb-6">
+        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Content Source</label>
+        <div class="flex rounded-xl bg-gray-100 p-1 space-x-1 border border-gray-200">
+          <input type="radio" id="source-prompt" name="quiz-source" value="prompt" checked class="hidden">
+          <label for="source-prompt" class="flex-1 text-center py-2 px-1 text-sm font-semibold text-gray-600 cursor-pointer rounded-xl transition duration-200 hover:bg-white/70 js-active-source-label">Topic</label>
+          
+          <input type="radio" id="source-text" name="quiz-source" value="text" class="hidden">
+          <label for="source-text" class="flex-1 text-center py-2 px-1 text-sm font-semibold text-gray-600 cursor-pointer rounded-xl transition duration-200 hover:bg-white/70 js-active-source-label">Text</label>
+          
+          <input type="radio" id="source-pdf" name="quiz-source" value="pdf" class="hidden">
+          <label for="source-pdf" class="flex-1 text-center py-2 px-1 text-sm font-semibold text-gray-600 cursor-pointer rounded-xl transition duration-200 hover:bg-white/70 js-active-source-label">PDF</label>
+        </div>
+      </div>
+
+      <!-- Dynamic Content Input Area -->
+      <div id="input-prompt-container" class="mb-6">
+        <label for="topic" class="block text-sm font-medium text-gray-700 mb-1">Enter a Topic:</label>
+        <input type="text" id="topic" value="Artificial Intelligence History" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" placeholder="e.g. Quantum Physics">
+      </div>
+
+      <div id="input-text-container" class="mb-6 hidden">
+        <label for="pasted-text" class="block text-sm font-medium text-gray-700 mb-1">Paste Content:</label>
+        <textarea id="pasted-text" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none" rows="5" placeholder="Paste study notes or articles here..."></textarea>
+      </div>
+
+      <div id="input-pdf-container" class="mb-6 hidden">
+        <label for="pdf-file" class="block text-sm font-medium text-gray-700 mb-1">Upload PDF:</label>
+        <input type="file" id="pdf-file" accept=".pdf" onchange="handlePdfUpload(event)" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+        <p id="pdf-status" class="text-xs text-gray-400 mt-2 italic">Max 10MB</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <div>
+          <label for="count" class="block text-sm font-medium text-gray-700 mb-1">Count</label>
+          <input type="number" id="count" value="5" min="1" max="20" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label for="type" class="block text-sm font-medium text-gray-700 mb-1">Format</label>
+          <select id="type" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500">
+            <option value="multiple_choice">MCQs</option>
+            <option value="open_ended">Short Answer</option>
+            <option value="mixed">Mixed</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="generate-button" onclick="generateQuiz()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-indigo-500/30 transition duration-200 flex items-center justify-center gap-2 group">
+        <span>Generate with Llama 3.1</span>
+        <span id="loading-spinner" class="hidden loading-ring"></span>
+      </button>
+    </div>
+
+    <!-- Quiz Display Panel -->
+    <div class="card p-6 lg:col-span-2 border border-gray-100">
+      <div id="quiz-header" class="mb-6 hidden">
+        <h2 id="quiz-topic-title" class="text-2xl font-bold text-gray-800">Your Quiz</h2>
+        <p id="quiz-status" class="text-sm text-indigo-500 font-medium"></p>
+      </div>
+
+      <div id="quiz-output" class="space-y-6">
+        <div class="text-center text-gray-400 py-16">
+          <p class="text-lg">Ready to start? Select your source and hit generate.</p>
+        </div>
+      </div>
+
+      <div id="quiz-actions" class="mt-8 pt-6 border-t border-gray-100 hidden flex justify-between items-center">
+        <div id="score-display" class="text-xl font-bold text-gray-800"></div>
+        <button id="grade-button" onclick="gradeQuiz()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition">
+          Submit Quiz
+        </button>
+      </div>
+
+      <!-- Tutor Chatbot Section -->
+      <div id="chatbot-section" class="mt-12 pt-8 border-t-2 border-dashed border-gray-100 hidden">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="bg-indigo-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800">Review & Clarify with Tutor AI</h3>
+        </div>
+        
+        <div id="chat-history" class="h-64 overflow-y-auto p-4 mb-4 border border-gray-200 rounded-xl bg-gray-50 space-y-3">
+          <p class="text-center text-xs text-gray-400 uppercase font-bold tracking-widest mt-10">Chat initiated</p>
+        </div>
+        
+        <div class="flex gap-2">
+          <input type="text" id="chat-input" class="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Explain why question 2 was wrong...">
+          <button id="chat-send-button" onclick="sendChatQuestion()" class="bg-indigo-600 text-white px-6 rounded-xl font-bold hover:bg-indigo-700 transition">
+            Ask
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Config
+    const GROQ_API_KEY = "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";
+    const GROQ_MODEL = "llama-3.1-8b-instant";
+
+    let lastQuizData = [];
+    let lastQuizResults = [];
+
+    // --- PDF Processing ---
+    async function handlePdfUpload(event) {
+      const file = event.target.files[0];
+      const status = document.getElementById('pdf-status');
+      const textArea = document.getElementById('pasted-text');
+      
+      if (!file) return;
+      status.innerHTML = `<span class="text-indigo-600 animate-pulse">Extracting text...</span>`;
+      
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          fullText += content.items.map(item => item.str).join(' ') + '\n';
+        }
+        textArea.value = fullText;
+        status.innerHTML = `<span class="text-green-600">✓ ${file.name} ready</span>`;
+      } catch (err) {
+        status.innerHTML = `<span class="text-red-500">Error reading PDF</span>`;
+        console.error(err);
+      }
+    }
+
+    // --- UI Logic ---
+    function updateInputMode() {
+      const source = document.querySelector('input[name="quiz-source"]:checked').value;
+      const containers = {
+        prompt: document.getElementById('input-prompt-container'),
+        text: document.getElementById('input-text-container'),
+        pdf: document.getElementById('input-pdf-container')
+      };
+      
+      Object.keys(containers).forEach(k => containers[k].classList.add('hidden'));
+      containers[source].classList.remove('hidden');
+      
+      document.querySelectorAll('.js-active-source-label').forEach(l => l.classList.remove('js-active-source'));
+      document.querySelector(`label[for="source-${source}"]`).classList.add('js-active-source');
+    }
+
+    // --- Groq API Handler ---
+    async function callGroq(messages, isJson = true) {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: messages,
+          temperature: 0.7,
+          response_format: isJson ? { type: "json_object" } : { type: "text" }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Groq API Error");
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    }
+
+    // --- Quiz Generation ---
+    async function generateQuiz() {
+      const source = document.querySelector('input[name="quiz-source"]:checked').value;
+      const count = document.getElementById('count').value;
+      const type = document.getElementById('type').value;
+      const output = document.getElementById('quiz-output');
+      const btn = document.getElementById('generate-button');
+      const spinner = document.getElementById('loading-spinner');
+
+      let contextText = "";
+      if (source === 'prompt') {
+        contextText = `the topic: ${document.getElementById('topic').value}`;
+      } else {
+        contextText = `this provided text: ${document.getElementById('pasted-text').value.substring(0, 15000)}`;
+      }
+
+      if (!contextText.trim()) {
+        output.innerHTML = `<p class="text-red-500 text-center font-bold">Please provide a topic or content first.</p>`;
+        return;
+      }
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      output.innerHTML = `<div class="text-center py-20"><div class="loading-ring !w-10 !h-10 !border-indigo-600 !border-t-transparent mx-auto"></div><p class="mt-4 font-bold text-indigo-600 animate-pulse">Llama 3.1 is drafting your quiz...</p></div>`;
+
+      const systemPrompt = `You are a professional quiz generator. Create exactly ${count} questions based on ${contextText}.
+      Rules:
+      1. For multiple_choice, provide 4 options and the "correct_answer" as a single letter (A, B, C, or D).
+      2. For open_ended, provide a "correct_answer_text" for grading reference.
+      3. Format strictly as JSON with a key "questions" which is an array of objects.
+      4. Object structure: {"question": "...", "type": "mcq/open", "options": ["...", "...", "...", "..."], "correct_answer": "A", "correct_answer_text": "..."}`;
+
+      try {
+        const result = await callGroq([
+          { role: "system", content: "You respond ONLY with valid JSON." },
+          { role: "user", content: systemPrompt }
+        ]);
+
+        const data = JSON.parse(result);
+        lastQuizData = data.questions || [];
+        renderQuiz(lastQuizData);
+        
+        document.getElementById('quiz-header').classList.remove('hidden');
+        document.getElementById('quiz-actions').classList.remove('hidden');
+        document.getElementById('quiz-status').textContent = `Generated ${lastQuizData.length} questions.`;
+        document.getElementById('chatbot-section').classList.add('hidden');
+        document.getElementById('score-display').textContent = "";
+        document.getElementById('grade-button').disabled = false;
+        document.getElementById('grade-button').textContent = "Submit Quiz";
+
+      } catch (err) {
+        output.innerHTML = `<p class="text-red-500 text-center">Error: ${err.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+      }
+    }
+
+    function renderQuiz(questions) {
+      const output = document.getElementById('quiz-output');
+      output.innerHTML = questions.map((q, i) => {
+        const isMcq = q.options && q.options.length > 0;
+        return `
+          <div class="p-5 border border-gray-200 rounded-2xl hover:border-indigo-200 transition bg-white shadow-sm">
+            <p class="text-lg font-bold text-gray-800 mb-4">${i + 1}. ${q.question}</p>
+            <div class="space-y-2">
+              ${isMcq ? q.options.map((opt, optIdx) => `
+                <label class="option-label flex items-center p-3 rounded-xl border border-gray-100 hover:bg-indigo-50 cursor-pointer transition">
+                  <input type="radio" name="q${i}" value="${String.fromCharCode(65 + optIdx)}" class="mr-3 h-4 w-4 text-indigo-600 focus:ring-indigo-500">
+                  <span class="text-gray-700"><span class="font-bold text-indigo-400 mr-1">${String.fromCharCode(65 + optIdx)}.</span> ${opt}</span>
+                </label>
+              `).join('') : `
+                <textarea name="q${i}" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" rows="2" placeholder="Your answer..."></textarea>
+              `}
+            </div>
+            <div id="feedback-${i}" class="mt-4 hidden p-3 rounded-lg text-sm font-medium"></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function gradeQuiz() {
+      let score = 0;
+      lastQuizResults = [];
+      
+      lastQuizData.forEach((q, i) => {
+        const isMcq = q.options && q.options.length > 0;
+        let userAnswer = "";
+        let isCorrect = false;
+        const feedback = document.getElementById(`feedback-${i}`);
+        
+        if (isMcq) {
+          const selected = document.querySelector(`input[name="q${i}"]:checked`);
+          userAnswer = selected ? selected.value : "None";
+          isCorrect = userAnswer === q.correct_answer;
+        } else {
+          userAnswer = document.querySelector(`textarea[name="q${i}"]`).value.trim();
+          // Open ended grading is simple string matching for client-side, 
+          // but we provide the reference answer in feedback.
+          isCorrect = userAnswer.toLowerCase() === (q.correct_answer_text || "").toLowerCase();
+        }
+
+        if (isCorrect) score++;
+        
+        feedback.classList.remove('hidden');
+        feedback.className = `mt-4 p-3 rounded-lg text-sm font-medium ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+        feedback.innerHTML = isCorrect ? 
+          `✓ Correct!` : 
+          `✗ Incorrect. Correct answer: ${isMcq ? q.correct_answer : q.correct_answer_text}`;
+        
+        lastQuizResults.push({
+          question: q.question,
+          userAnswer,
+          correctAnswer: isMcq ? q.correct_answer : q.correct_answer_text,
+          isCorrect
+        });
+      });
+
+      document.getElementById('score-display').textContent = `Score: ${score} / ${lastQuizData.length}`;
+      document.getElementById('grade-button').disabled = true;
+      document.getElementById('grade-button').textContent = "Submitted";
+      document.getElementById('chatbot-section').classList.remove('hidden');
+    }
+
+    // --- Chatbot Logic ---
+    async function sendChatQuestion() {
+      const input = document.getElementById('chat-input');
+      const btn = document.getElementById('chat-send-button');
+      const userText = input.value.trim();
+      if (!userText) return;
+
+      appendMessage('user', userText);
+      input.value = "";
+      btn.disabled = true;
+
+      const history = document.getElementById('chat-history');
+      const typing = document.createElement('div');
+      typing.className = 'chat-bubble ai-message italic';
+      typing.textContent = "Tutor is thinking...";
+      history.appendChild(typing);
+      history.scrollTop = history.scrollHeight;
+
+      // Build context for the Tutor
+      const quizContext = lastQuizResults.map((r, idx) => 
+        `Q${idx+1}: ${r.question}\nUser said: ${r.userAnswer}\nCorrect was: ${r.correctAnswer}\nStatus: ${r.isCorrect ? 'Correct' : 'Wrong'}`
+      ).join('\n\n');
+
+      try {
+        const aiResponse = await callGroq([
+          { role: "system", content: "You are a helpful Tutor AI. Help the student understand the quiz results and explain concepts clearly. Use markdown bolding for key terms." },
+          { role: "user", content: `Context of my quiz:\n${quizContext}\n\nMy question: ${userText}` }
+        ], false);
+        
+        typing.remove();
+        appendMessage('ai', aiResponse);
+      } catch (err) {
+        typing.textContent = "Sorry, I encountered an error answering that.";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function appendMessage(role, text) {
+      const history = document.getElementById('chat-history');
+      const div = document.createElement('div');
+      div.className = `chat-bubble ${role === 'user' ? 'user-message' : 'ai-message'}`;
+      // Basic markdown bolding converter
+      div.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<b class="markdown-bold">$1</b>');
+      history.appendChild(div);
+      history.scrollTop = history.scrollHeight;
+    }
+
+    // --- Initialization ---
+    document.querySelectorAll('input[name="quiz-source"]').forEach(input => {
+      input.addEventListener('change', updateInputMode);
+    });
+
+    document.getElementById('chat-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendChatQuestion();
+    });
+
+    updateInputMode();
+  </script>
+</body>
+</html>
